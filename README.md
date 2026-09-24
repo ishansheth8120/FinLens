@@ -1,6 +1,19 @@
 # FinLens
 
-Question answering over SEC EDGAR filings — **with every figure machine-checked
+**Financial intelligence over SEC EDGAR filings, with machine-checked evidence.**
+
+FinLens is a financial question-answering system that combines structured
+SEC XBRL data with filing-text retrieval to answer questions about public
+companies.
+
+It routes each question to the appropriate source:
+
+- **Structured financial questions** → SQL over the financial warehouse
+- **Narrative questions** → retrieval over SEC filing text
+- **Mixed questions** → structured data + filing evidence
+
+Answers include citations and verification information so users can inspect
+where the result came from and how it was produced.
 against its source before it is served.**
 
 ```
@@ -61,7 +74,8 @@ EDGAR ──ingest──▶ R2 (raw/, dt= partitioned) ──Spark──▶ silv
 | [`finlens/agent/`](finlens/agent/) | Router, text-to-SQL, RAG, synthesis, **verifier** |
 | [`finlens/governance/`](finlens/governance/) | Access control, audit log, lineage, RLS policies |
 | [`finlens/eval/`](finlens/eval/) | 70-case golden set, metrics, LLM judge, harness |
-| [`finlens/api/`](finlens/api/) | FastAPI + HTMX UI |
+| [`finlens/api/`](finlens/api/) | FastAPI backend and API routes |
+frontend/              | Next.js + React + TypeScript frontend
 | [`finlens/airflow/`](finlens/airflow/) | DAGs: daily ingest, backfill, nightly eval gate |
 | [`finlens/docs/`](finlens/docs/) | **The report** |
 
