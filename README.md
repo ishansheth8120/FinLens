@@ -75,7 +75,7 @@ EDGAR ──ingest──▶ R2 (raw/, dt= partitioned) ──Spark──▶ silv
 | [`finlens/governance/`](finlens/governance/) | Access control, audit log, lineage, RLS policies |
 | [`finlens/eval/`](finlens/eval/) | 70-case golden set, metrics, LLM judge, harness |
 | [`finlens/api/`](finlens/api/) | FastAPI backend and API routes |
-frontend/              | Next.js + React + TypeScript frontend
+[`frontend/`](https://github.com/ishansheth8120/FinLens/tree/main/frontend)              | Next.js + React + TypeScript frontend
 | [`finlens/airflow/`](finlens/airflow/) | DAGs: daily ingest, backfill, nightly eval gate |
 | [`finlens/docs/`](finlens/docs/) | **The report** |
 
