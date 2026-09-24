@@ -2080,3 +2080,102 @@ We're now moving from:
 to:
 "Can FinLens feel like a real financial intelligence product?"
 And the immediate step is simply getting the Next.js dependency installation clean. Once that succeeds, we can start building the actual UI rather than spending more time on setup.
+## Current Debugging Findings: SEC Revenue Query and Warehouse Period Classification
+
+### Problem observed
+
+For the question:
+
+> What was Apple's revenue in fiscal 2024?
+
+FinLens correctly classified the question as an SQL/warehouse query. The SQL generator initially used a non-existent `fiscal_year` column, while the warehouse uses `reported_fiscal_year`, `reported_fiscal_period`, `calendar_year`, and `calendar_period`.
+
+The generated SQL was subsequently executable but returned zero rows. FinLens then correctly fell back to RAG/SEC filing evidence and produced Apple's FY2024 revenue as $391.035 billion based on reported net sales.
+
+### Warehouse findings
+
+The actual warehouse contains the relevant Apple FY2024 data in:
+
+`main_marts.fct_financial_fact`
+
+Important columns include:
+
+- `cik`
+- `metric`
+- `value`
+- `period_start`
+- `period_end`
+- `period_kind`
+- `duration_days`
+- `calendar_year`
+- `calendar_period`
+- `reported_fiscal_year`
+- `reported_fiscal_period`
+- `form`
+- `filed_date`
+- `accession_number`
+- `is_latest`
+
+The Apple 2024 10-K contains comparative historical values. Therefore, filtering only on `reported_fiscal_year = 2024` can return multiple periods.
+
+For Apple's FY2024 revenue, the relevant period ends on `2024-09-28`.
+
+### `is_latest` finding
+
+`is_latest` must not be interpreted as "latest fiscal year."
+
+For Apple's 2024 10-K, a comparative historical record can have `is_latest = true` while the FY2024 record has `is_latest = false`.
+
+This appears to represent latest/restatement-record semantics rather than latest fiscal-period semantics.
+
+### dbt findings
+
+The correct DuckDB database is:
+
+`/Users/ishansheth/Projects/FinLens/data/warehouse/finlens.duckdb`
+
+The dbt profile required `FINLENS_DUCKDB_PATH` to be explicitly set to this location during debugging.
+
+The FastAPI/Uvicorn development server also held a DuckDB lock, so it had to be stopped before running dbt.
+
+Once the lock and path issues were resolved, dbt successfully built the upstream models but failed on:
+
+`assert_no_overlapping_annual_periods`
+
+The test reported 897 overlapping annual-period records.
+
+### Overlapping annual-period finding
+
+Diagnostic results showed examples where the same company/metric had multiple overlapping periods classified as annual, including:
+
+- 2015-07-01 → 2016-06-30
+- 2015-10-01 → 2016-09-30
+- 2016-01-01 → 2016-12-31
+- 2016-04-01 → 2017-03-31
+
+The number and nature of these overlaps suggest that multiple rolling or non-fiscal reporting windows may currently be classified as `period_kind = 'annual'`.
+
+The existing data-quality test should therefore not be weakened or removed until the classification logic is understood.
+
+### Current data flow
+
+`SEC EDGAR / XBRL → ingestion / normalization → silver.facts → stg_facts → fct_financial_fact → curated marts → SQL agent`
+
+`stg_facts` passes `period_kind` through from `silver.facts`. The current repository search has not yet located the code that actually assigns `period_kind`.
+
+### SQL/RAG behavior
+
+The SQL path is preferred for structured financial questions.
+
+If the warehouse query returns no usable result, FinLens falls back to SEC filing text retrieval.
+
+The Apple example demonstrated that this fallback works correctly, but the SQL generation and period semantics need improvement so that valid warehouse records are found directly.
+
+### Latency finding
+
+The Apple request took approximately 88 seconds.
+
+The DuckDB query itself executed in approximately 1.7 ms and RAG retrieval in approximately 343 ms.
+
+The dominant latency came from repeated Gemini rate-limit retries and subsequent LLM calls.
+
