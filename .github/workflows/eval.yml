@@ -1,0 +1,59 @@
+name: Eval
+
+# The golden set against real providers. Not on every push: it costs free-tier
+# quota and takes several minutes, and running it per-commit would exhaust the
+# rate limit and produce noise rather than signal.
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Only cases with these tags (comma-separated)"
+        required: false
+        type: string
+  schedule:
+    - cron: "0 5 * * 2-6" # weekday mornings, after the ingest window
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -e '.[storage,embed,agent,llm,api,eval]'
+
+      - name: Restore the warehouse and index
+        # Rebuilding from EDGAR on every eval run would take hours and hammer
+        # SEC. The artefacts are cached and rebuilt by the ingest workflow.
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: finlens-data-${{ github.ref_name }}
+          restore-keys: finlens-data-
+
+      - name: Run the golden set
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FINLENS_SEC_USER_AGENT: ${{ secrets.FINLENS_SEC_USER_AGENT }}
+          FINLENS_EMBEDDING_PROVIDER: sentence-transformers
+        run: |
+          finlens-eval run ${{ inputs.tags && format('--tags {0}', inputs.tags) || '' }} \
+            | tee eval-report.md
+
+      - name: Publish the report to the run summary
+        if: always()
+        run: cat eval-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the run artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-run
+          path: finlens/eval/runs/
+          retention-days: 90

@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Weekly, so dependency drift and EDGAR schema changes surface before a
+  # release rather than during one.
+  schedule:
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # No network calls in CI, but the client warns loudly without a real agent
+  # and the warning is noise in the log.
+  FINLENS_SEC_USER_AGENT: "FinLens-CI/0.1 (ci@example.invalid)"
+  # Deterministic stand-in: CI must not download a 130 MB model on every run.
+  FINLENS_EMBEDDING_PROVIDER: hash
+  FINLENS_EMBEDDING_DIM: "384"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[storage,agent,api,eval,dev]'
+
+      - name: Lint
+        run: |
+          ruff check finlens tests
+          ruff format --check finlens tests
+
+      - name: Type check
+        run: mypy finlens
+        continue-on-error: true # advisory until the annotations are complete
+
+      - name: Test
+        run: pytest -m "not integration" -q
+
+  warehouse:
+    # dbt models are code and break like code. Compiling them catches a bad
+    # ref or a missing macro without needing data.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dbt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[warehouse]'
+
+      - name: dbt deps
+        working-directory: finlens/warehouse
+        run: dbt deps
+
+      - name: dbt parse
+        working-directory: finlens/warehouse
+        env:
+          FINLENS_DBT_TARGET: ci
+          FINLENS_DUCKDB_PATH: /tmp/finlens_ci.duckdb
+        run: dbt parse
+
+      - name: Check the seed is well-formed
+        run: |
+          python - <<'PY'
+          import csv, pathlib, sys
+          rows = list(csv.DictReader(
+              pathlib.Path("finlens/warehouse/seeds/concept_map.csv").open()))
+          assert rows, "concept map is empty"
+          required = {"metric", "taxonomy", "concept", "priority", "unit", "period_type"}
+          missing = required - set(rows[0])
+          assert not missing, f"concept map missing columns: {missing}"
+          # A duplicate (metric, concept) makes the priority tie-break
+          # non-deterministic, which silently changes which tag wins.
+          seen = set()
+          for row in rows:
+              key = (row["metric"], row["concept"])
+              assert key not in seen, f"duplicate mapping: {key}"
+              seen.add(key)
+          print(f"{len(rows)} mappings, {len({r['metric'] for r in rows})} metrics")
+          PY
+
+  golden-set:
+    # The golden set is data with no compiler. Validate it on every commit so a
+    # malformed case fails here rather than silently dropping out of a run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e '.[agent,eval,dev]'
+      - run: pytest tests/unit/test_golden_set.py -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: finlens/docker/Dockerfile.api
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

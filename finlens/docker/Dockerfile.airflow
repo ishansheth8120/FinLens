@@ -1,0 +1,36 @@
+# Airflow image: scheduler and workers, with the FinLens package and dbt.
+#
+# Spark jobs are submitted from here via spark-submit against the standalone
+# cluster, so this image carries a JRE but not a full Spark distribution beyond
+# the client.
+FROM apache/airflow:2.9.3-python3.11
+
+USER root
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y default-jre-headless procps \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+USER airflow
+WORKDIR /opt/finlens
+
+COPY --chown=airflow:root pyproject.toml README.md ./
+COPY --chown=airflow:root finlens/ finlens/
+
+# Airflow pins a large dependency set; the constraint file keeps our extras from
+# resolving it into an unbootable combination.
+ARG AIRFLOW_VERSION=2.9.3
+ARG PYTHON_VERSION=3.11
+RUN pip install --no-cache-dir \
+        --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt" \
+        '.[agent,embed,warehouse,eval]' \
+    && pip install --no-cache-dir --no-deps -e . \
+    && pip install --no-cache-dir 'pyspark==3.5.1'
+
+ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/finlens/finlens/airflow/dags \
+    AIRFLOW__CORE__LOAD_EXAMPLES=false \
+    FINLENS_LAKE_ROOT=/opt/finlens/data/lake \
+    FINLENS_DUCKDB_PATH=/opt/finlens/data/warehouse/finlens.duckdb \
+    FINLENS_VECTOR_STORE_PATH=/opt/finlens/data/index \
+    FINLENS_DBT_DIR=/opt/finlens/finlens/warehouse \
+    FINLENS_LOG_JSON=true

@@ -1,0 +1,55 @@
+# Hugging Face Spaces (Docker SDK) image.
+#
+# Spaces requires the app on port 7860 and runs the container as UID 1000. Both
+# are baked in here rather than left to Space settings, so the same image runs
+# locally and on Spaces without a config divergence.
+#
+# The data volume is baked in too: a Space has ephemeral disk and no Spark, so
+# the warehouse and vector index are built in CI and shipped in the image.
+# That is the right trade for a read-only demo - the alternative is a cold
+# start that rebuilds from EDGAR, which would take hours and hammer SEC.
+
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_HOME=/home/user/.cache/huggingface \
+    SENTENCE_TRANSFORMERS_HOME=/home/user/.cache/huggingface
+
+# Spaces runs as uid 1000; anything written by root at build time is unreadable
+# at run time unless it is chowned.
+RUN useradd -m -u 1000 user
+USER user
+ENV PATH=/home/user/.local/bin:$PATH
+WORKDIR /home/user/app
+
+COPY --chown=user pyproject.toml README.md ./
+COPY --chown=user finlens/ finlens/
+
+RUN pip install --user --no-cache-dir '.[agent,api,embed,eval]' \
+    && pip install --user --no-cache-dir --no-deps -e .
+
+# Pre-download the embedding model at build time. Doing it lazily on first
+# request means the first visitor waits ~40s for a 130 MB download.
+RUN python -c "\
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('BAAI/bge-small-en-v1.5')"
+
+# Prebuilt warehouse and index, produced by the ingest workflow. Optional -
+# the app starts without them and /health reports the degraded state.
+COPY --chown=user data/ /home/user/app/data/
+
+ENV FINLENS_LAKE_ROOT=/home/user/app/data/lake \
+    FINLENS_DUCKDB_PATH=/home/user/app/data/warehouse/finlens.duckdb \
+    FINLENS_VECTOR_STORE_PATH=/home/user/app/data/index \
+    FINLENS_EMBEDDING_PROVIDER=sentence-transformers \
+    FINLENS_LOG_JSON=true \
+    FINLENS_API_PORT=7860
+
+EXPOSE 7860
+
+# One worker: the free CPU tier has limited memory, and a second worker would
+# load a second copy of the embedding model.
+CMD ["uvicorn", "finlens.api.main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]

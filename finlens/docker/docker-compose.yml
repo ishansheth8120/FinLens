@@ -1,0 +1,143 @@
+# Full local stack. Run from the repo root:
+#
+#   docker compose -f finlens/docker/docker-compose.yml up api
+#   docker compose -f finlens/docker/docker-compose.yml --profile pipeline up
+#
+# The API is the default; Spark and Airflow sit behind profiles because most
+# work does not need them running.
+#
+# One shared `data` volume is deliberate: DuckDB is a single file, and the API,
+# the Spark jobs and the Airflow workers all need to see the same lake. That is
+# also this topology's real constraint - it does not survive a move to more than
+# one host, at which point the lake goes to object storage and DuckDB is read
+# from a snapshot rather than written in place. Noted in the report.
+
+name: finlens
+
+x-finlens-env: &finlens-env
+  FINLENS_SEC_USER_AGENT: ${FINLENS_SEC_USER_AGENT:?set a real contact address, SEC blocks anonymous agents}
+  FINLENS_LAKE_ROOT: /opt/finlens/data/lake
+  FINLENS_DUCKDB_PATH: /opt/finlens/data/warehouse/finlens.duckdb
+  FINLENS_VECTOR_STORE_PATH: /opt/finlens/data/index
+  FINLENS_EMBEDDING_PROVIDER: ${FINLENS_EMBEDDING_PROVIDER:-hash}
+  FINLENS_LLM_MODEL: ${FINLENS_LLM_MODEL:-claude-opus-5}
+  FINLENS_LOG_JSON: "true"
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: finlens/docker/Dockerfile.api
+    environment:
+      <<: *finlens-env
+    ports:
+      - "${FINLENS_API_PORT:-8000}:8000"
+    volumes:
+      - finlens-data:/opt/finlens/data
+    restart: unless-stopped
+
+  # --- Spark standalone (profile: pipeline) ----------------------------------
+  spark-master:
+    profiles: [pipeline]
+    build:
+      context: ../..
+      dockerfile: finlens/docker/Dockerfile.spark
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
+    environment:
+      <<: *finlens-env
+      SPARK_NO_DAEMONIZE: "true"
+    ports:
+      - "8080:8080"  # master UI
+      - "7077:7077"
+    volumes:
+      - finlens-data:/opt/finlens/data
+
+  spark-worker:
+    profiles: [pipeline]
+    build:
+      context: ../..
+      dockerfile: finlens/docker/Dockerfile.spark
+    command:
+      ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    environment:
+      <<: *finlens-env
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_WORKER_CORES: "4"
+      SPARK_WORKER_MEMORY: "4g"
+    depends_on: [spark-master]
+    volumes:
+      - finlens-data:/opt/finlens/data
+    deploy:
+      replicas: 2
+
+  # --- Airflow (profile: pipeline) -------------------------------------------
+  postgres:
+    profiles: [pipeline]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+
+  airflow-init:
+    profiles: [pipeline]
+    build:
+      context: ../..
+      dockerfile: finlens/docker/Dockerfile.airflow
+    environment: &airflow-env
+      <<: *finlens-env
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      SPARK_MASTER: spark://spark-master:7077
+    entrypoint: >
+      bash -c "
+        airflow db migrate &&
+        airflow users create --username admin --password admin
+          --firstname a --lastname b --role Admin --email admin@example.com || true &&
+        airflow pools set edgar_rate_limit 1 'Serialises EDGAR access across DAGs'
+      "
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes:
+      - finlens-data:/opt/finlens/data
+
+  airflow-scheduler:
+    profiles: [pipeline]
+    build:
+      context: ../..
+      dockerfile: finlens/docker/Dockerfile.airflow
+    command: scheduler
+    environment: *airflow-env
+    depends_on:
+      airflow-init: {condition: service_completed_successfully}
+    volumes:
+      - finlens-data:/opt/finlens/data
+    restart: unless-stopped
+
+  airflow-webserver:
+    profiles: [pipeline]
+    build:
+      context: ../..
+      dockerfile: finlens/docker/Dockerfile.airflow
+    command: webserver
+    environment: *airflow-env
+    ports:
+      - "8081:8080"
+    depends_on:
+      airflow-init: {condition: service_completed_successfully}
+    volumes:
+      - finlens-data:/opt/finlens/data
+    restart: unless-stopped
+
+volumes:
+  finlens-data:
+  airflow-db:

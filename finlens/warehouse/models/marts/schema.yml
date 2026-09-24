@@ -1,0 +1,132 @@
+version: 2
+
+# Descriptions here are not documentation for humans alone - `finlens.agent.
+# schema_catalog` renders them straight into the text-to-SQL prompt. A column
+# whose description is wrong here produces wrong SQL there, so they are tested
+# like code.
+
+models:
+  - name: dim_company
+    description: >
+      One row per SEC registrant, with filing activity and XBRL coverage
+      summarised. Start here to resolve a company name or ticker to a CIK.
+    columns:
+      - name: cik
+        description: Zero-padded 10-digit Central Index Key. The join key everywhere.
+        tests: [not_null, unique]
+      - name: ticker
+        description: Primary exchange ticker. NULL for private filers and most funds.
+      - name: company_name
+        description: Registrant name as filed.
+        tests: [not_null]
+      - name: sector
+        description: Coarse sector derived from SIC. Not GICS - see `sic_sector` macro.
+      - name: has_financial_data
+        description: >
+          Whether the company has any XBRL facts. FALSE means numeric questions
+          cannot be answered for it, regardless of how the query is written.
+        tests: [not_null]
+      - name: latest_fact_year
+        description: Most recent calendar year with reported financial data.
+
+  - name: dim_filing
+    description: One row per company filing, with a resolvable sec.gov URL.
+    tests:
+      # Ownership reports can appear in more than one issuer's submission feed,
+      # so an SEC accession is only unique within its company context.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [cik, accession_number]
+    columns:
+      - name: accession_number
+        description: Dashed accession number, e.g. `0000320193-24-000123`.
+        tests: [not_null]
+      - name: cik
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_company')
+              field: cik
+      - name: form
+        description: Form type as filed, e.g. `10-K`, `10-Q`, `8-K`, `10-K/A`.
+        tests: [not_null]
+      - name: base_form
+        description: Form with the `/A` amendment suffix stripped. Filter on this.
+      - name: filing_url
+        description: Direct link to the primary document on sec.gov.
+
+  - name: fct_financial_fact
+    description: >
+      Long fact table with every restatement vintage retained. Use when the
+      question is about what was reported at a point in time; otherwise prefer
+      `fct_company_metric`, which pre-filters to the current value.
+    columns:
+      - name: financial_fact_sk
+        tests: [not_null, unique]
+      - name: metric
+        description: >
+          Stable metric name resolved from the XBRL concept, e.g. `revenue`,
+          `net_income`, `total_assets`. See `stg_concept_map` for the mapping.
+        tests: [not_null]
+      - name: period_kind
+        description: >
+          instant | quarterly | annual | half_year | three_quarters | irregular.
+          Filter to `annual` or `quarterly` for flows; `instant` for balances.
+          Mixing them double-counts, because year-to-date durations overlap.
+        tests: [not_null]
+      - name: is_latest
+        description: TRUE for the most recently filed version of this fact.
+        tests: [not_null]
+      - name: value
+        description: Reported value in `unit`. Never NULL.
+        tests: [not_null]
+
+  - name: fct_company_metric
+    description: >
+      Current-value metric time series, one row per company/metric/period, with
+      prior-period and year-over-year change already computed. The default
+      table for numeric questions.
+    columns:
+      - name: company_metric_sk
+        tests: [not_null, unique]
+      - name: metric
+        tests: [not_null]
+      - name: period_label
+        description: "`FY` for annual, `Q1`-`Q4` for quarterly, `PIT` for balances."
+      - name: pct_change_year_over_year
+        description: >
+          Fraction, not percent - 0.12 means 12%. Quarterly rows only; NULL on
+          annual rows, where a four-period lag would be four years.
+
+  - name: fct_company_annual
+    description: >
+      Wide company-year table with standard ratios pre-computed. Prefer this for
+      anything involving a margin, a ratio, or several metrics at once - it
+      avoids the multi-way self-join that generated SQL gets wrong.
+    columns:
+      - name: company_year_sk
+        tests: [not_null, unique]
+      - name: fiscal_year
+        description: Calendar year the fiscal period ends in, not the label the company uses.
+        tests: [not_null]
+      - name: gross_margin
+        description: gross_profit / revenue, as a fraction. NULL when revenue is zero or absent.
+      - name: revenue_growth
+        description: Year-over-year revenue change as a fraction, within a company.
+
+  - name: fct_filing_section
+    description: >
+      The RAG corpus: item-level narrative sections with citation metadata
+      attached. The vector index in `finlens.embed` stores `section_id`; this
+      table supplies everything needed to cite a hit.
+    columns:
+      - name: section_id
+        tests: [not_null, unique]
+      - name: item
+        description: >
+          Item number within the form, e.g. `1A` for Risk Factors, `7` for MD&A.
+          NULL when section detection failed and the whole filing is one section.
+      - name: section_text
+        description: Extracted plain text. Never NULL, always at least 200 characters.
+        tests: [not_null]
+      - name: citation_label
+        description: Pre-formatted human-readable citation, e.g. `AAPL 10-K 2024, Item 1A`.

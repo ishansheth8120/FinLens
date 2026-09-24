@@ -1,0 +1,74 @@
+version: 2
+
+# The silver zone is read straight out of Parquet. dbt-duckdb's `external_location`
+# points at the files, so there is no load step between Spark and the warehouse -
+# Spark writes Parquet, dbt reads it, and the only copy of the data is the lake.
+sources:
+  - name: silver
+    description: >
+      Conformed entities produced by the PySpark jobs in `finlens/spark/jobs`.
+      Regenerable end-to-end from the raw zone; never edited in place.
+    # dbt-duckdb formats this value with Python-style placeholders (`{name}`)
+    # and does not render Jinja inside it. This path is relative to this dbt
+    # project's working directory, so it resolves to `data/lake` both locally
+    # and in the Docker images.
+
+    meta:
+      external_location: "read_parquet('/Users/ishansheth/Projects/FinLens/data/lake/curated/silver/{name}/**/*.parquet', hive_partitioning = true, union_by_name = true)"
+    tables:
+      - name: facts
+        description: One row per reported XBRL fact, including superseded restatements.
+        columns:
+          - name: fact_sk
+            description: Deterministic surrogate key over the fact grain plus accession.
+            tests: [not_null]
+          - name: cik
+            description: Zero-padded 10-digit CIK.
+            tests: [not_null]
+          - name: concept
+            description: XBRL concept name, e.g. `NetIncomeLoss`.
+            tests: [not_null]
+          - name: value
+            description: Reported value in `unit`.
+          - name: period_kind
+            description: instant | quarterly | half_year | three_quarters | annual | irregular
+            tests:
+              - accepted_values:
+                  values:
+                    [
+                      instant,
+                      quarterly,
+                      half_year,
+                      three_quarters,
+                      annual,
+                      irregular,
+                    ]
+          - name: is_latest
+            description: True for the most recently filed version of this fact.
+            tests: [not_null]
+
+      - name: companies
+        description: Current-state company registry, one row per CIK.
+        columns:
+          - name: cik
+            tests: [not_null, unique]
+          - name: name
+            tests: [not_null]
+
+      - name: filings
+        description: One row per filing across every form type.
+        columns:
+          - name: accession_number
+            tests: [not_null]
+          - name: cik
+            tests: [not_null]
+          - name: form
+            tests: [not_null]
+
+      - name: sections
+        description: Item-level narrative sections extracted from filing HTML.
+        columns:
+          - name: section_id
+            tests: [not_null, unique]
+          - name: text
+            tests: [not_null]

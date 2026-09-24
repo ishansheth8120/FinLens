@@ -1,0 +1,45 @@
+name: finlens
+version: "0.1.0"
+config-version: 2
+
+profile: finlens
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Absolute path to the lake, injected by the Makefile / Airflow so the same
+  # project works from any working directory.
+  lake_root: "{{ env_var('FINLENS_LAKE_ROOT', '../../data/lake') }}"
+  # Facts older than this are excluded from the marts. XBRL mandates phased in
+  # around 2009 and coverage before then is too thin to compare.
+  min_fiscal_year: 2010
+
+models:
+  finlens:
+    +materialized: view
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
+    semantic:
+      +materialized: view
+      +schema: semantic
+
+seeds:
+  finlens:
+    +schema: reference
+    concept_map:
+      +column_types:
+        metric: varchar
+        taxonomy: varchar
+        concept: varchar
+        priority: integer

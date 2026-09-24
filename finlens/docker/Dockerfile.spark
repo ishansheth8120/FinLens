@@ -1,0 +1,34 @@
+# Spark image: JVM plus the FinLens package, for both driver and executors.
+#
+# The project is installed rather than shipped as a --py-files zip. The Spark
+# jobs import `finlens.ingest` and `finlens.spark.html_sections` inside their
+# flatMap closures, so executors need the real package, and a zip that drifts
+# from the driver's version fails in ways that are miserable to debug.
+FROM apache/spark:3.5.1-python3
+
+USER root
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYSPARK_PYTHON=/usr/bin/python3 \
+    PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+
+WORKDIR /opt/finlens
+
+COPY pyproject.toml README.md ./
+COPY finlens/ finlens/
+
+# --no-deps for pyspark: the base image already has a matched JVM/Python pair,
+# and letting pip resolve a different pyspark version is how you get a driver
+# and executors that disagree about the protocol.
+RUN pip3 install --no-cache-dir '.[embed]' \
+    && pip3 install --no-cache-dir --no-deps -e .
+
+ENV FINLENS_LAKE_ROOT=/opt/finlens/data/lake \
+    FINLENS_DUCKDB_PATH=/opt/finlens/data/warehouse/finlens.duckdb \
+    FINLENS_LOG_JSON=true
+
+RUN mkdir -p /opt/finlens/data && chown -R spark:spark /opt/finlens
+USER spark
+
+ENTRYPOINT ["/opt/entrypoint.sh"]

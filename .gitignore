@@ -1,0 +1,66 @@
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+.env
+.env.local
+
+# Data lake, warehouse and vector index are all reproducible from EDGAR.
+data/
+!data/.gitkeep
+
+# dbt
+finlens/warehouse/target/
+finlens/warehouse/dbt_packages/
+finlens/warehouse/logs/
+
+# Airflow
+finlens/airflow/logs/
+finlens/airflow/airflow.db
+finlens/airflow/airflow.cfg
+finlens/airflow/webserver_config.py
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Eval artifacts
+finlens/eval/runs/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Python virtual environments
+.venv-py312/
+.venv312/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+
+# Local IDE / editor files
+.vscode/
+.idea/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local Claude configuration
+.claude/settings.local.json
+
+# Local dbt/user configuration
+finlens/warehouse/.user.yml
+
+# Local backup files
+*.save

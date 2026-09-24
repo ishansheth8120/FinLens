@@ -1,0 +1,47 @@
+# The API image. No JVM, no Airflow - it serves questions and nothing else.
+FROM python:3.11-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /opt/finlens
+
+# --- dependencies ------------------------------------------------------------
+# Copied before the source so a code change does not invalidate the pip layer.
+FROM base AS deps
+COPY pyproject.toml README.md ./
+COPY finlens/__init__.py finlens/__init__.py
+RUN pip install --no-cache-dir '.[agent,api,embed,warehouse]'
+
+# --- runtime -----------------------------------------------------------------
+FROM base AS runtime
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+
+COPY finlens/ finlens/
+COPY pyproject.toml README.md ./
+RUN pip install --no-cache-dir --no-deps -e .
+
+# Non-root. The data volume is mounted with matching ownership by compose.
+RUN useradd --create-home --uid 1000 finlens \
+    && mkdir -p /opt/finlens/data \
+    && chown -R finlens:finlens /opt/finlens
+USER finlens
+
+ENV FINLENS_LAKE_ROOT=/opt/finlens/data/lake \
+    FINLENS_DUCKDB_PATH=/opt/finlens/data/warehouse/finlens.duckdb \
+    FINLENS_VECTOR_STORE_PATH=/opt/finlens/data/index \
+    FINLENS_LOG_JSON=true \
+    FINLENS_API_HOST=0.0.0.0 \
+    FINLENS_API_PORT=8000
+
+EXPOSE 8000
+
+# Liveness, not readiness: the orchestrator should restart a dead process, not
+# one that is merely waiting for its first warehouse build.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+CMD ["uvicorn", "finlens.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

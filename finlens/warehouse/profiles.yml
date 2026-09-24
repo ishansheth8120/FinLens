@@ -1,0 +1,61 @@
+# Checked in on purpose: neither target holds a secret. DuckDB needs no
+# credentials at all, and BigQuery reads them from Application Default
+# Credentials (`gcloud auth application-default login`) rather than from here.
+#
+# Two targets, same models:
+#
+#   dev        DuckDB, local file. What `make demo` uses. Zero setup, and the
+#              whole warehouse is one file you can delete.
+#   bigquery   BigQuery sandbox free tier. 10 GB storage and 1 TB of queries a
+#              month, permanently, with no card. What the deployed stack uses.
+#
+# The models are dialect-portable by construction - no DuckDB-only functions in
+# any mart - so `dbt build --target bigquery` runs the same SQL.
+
+finlens:
+  target: "{{ env_var('FINLENS_DBT_TARGET', 'dev') }}"
+
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('FINLENS_DUCKDB_PATH', '../../data/warehouse/finlens.duckdb') }}"
+      threads: 4
+      extensions:
+        - httpfs
+        - parquet
+      settings:
+        # The marts fit in memory on a laptop; spilling to disk beats an OOM
+        # during a full rebuild.
+        memory_limit: "4GB"
+        temp_directory: "/tmp/duckdb_finlens"
+        # Reading silver Parquet straight out of Cloudflare R2. Ignored when
+        # the lake is local.
+        s3_endpoint: "{{ env_var('R2_S3_ENDPOINT', '') }}"
+        s3_access_key_id: "{{ env_var('R2_ACCESS_KEY_ID', '') }}"
+        s3_secret_access_key: "{{ env_var('R2_SECRET_ACCESS_KEY', '') }}"
+        s3_url_style: "path"
+
+    bigquery:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT', '') }}"
+      dataset: "{{ env_var('FINLENS_BIGQUERY_DATASET', 'finlens') }}"
+      location: "{{ env_var('FINLENS_BIGQUERY_LOCATION', 'US') }}"
+      threads: 4
+      # The sandbox tier has no billing account, so every table gets a 60-day
+      # expiry whether you ask for it or not. Setting it explicitly means the
+      # behaviour is visible in config rather than a surprise in two months.
+      priority: interactive
+      job_execution_timeout_seconds: 600
+      job_retries: 2
+      # Guardrail against a runaway scan eating the 1 TB monthly allowance in
+      # one query. A full-corpus rebuild is well under this.
+      maximum_bytes_billed: 10000000000 # 10 GB
+
+    # Same models, throwaway database, so CI never touches dev data.
+    ci:
+      type: duckdb
+      path: "{{ env_var('FINLENS_DUCKDB_PATH', '/tmp/finlens_ci.duckdb') }}"
+      threads: 2
+      extensions:
+        - parquet
