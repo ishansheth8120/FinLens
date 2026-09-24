@@ -1,5 +1,5 @@
 
-FinLens — UI/UX Product Specification
+FinLens, UI/UX Product Specification
 Status: Design direction agreed, implementation starting
 Frontend: Next.js + React + TypeScript
 Target devices: Laptop / desktop + tablet + mobile
@@ -795,7 +795,7 @@ Metric             FY2022     FY2023     FY2024
 ────────────────────────────────────────────────
 Revenue            $394B      $383B      $391B
 Gross Margin       43.3%      44.1%      46.2%
-Revenue Growth      —         -2.8%      +2.0%
+Revenue Growth     ,         -2.8%      +2.0%
 Use monospace numbers.
 Right-align numerical columns.
 54. Table Responsiveness
@@ -902,7 +902,7 @@ Excessive financial-terminal density
 Avoid making every screen look like Bloomberg.
 FinLens should be inspired by professional terminals while remaining modern and approachable.
 60. MVP vs Later
-Phase 1 — Core UI
+Phase 1, Core UI
 Build first:
 - dark design system
 - responsive shell
@@ -920,7 +920,7 @@ Build first:
 - verification
 - warnings
 - technical details
-Phase 2 — Intelligence UI
+Phase 2, Intelligence UI
 Then:
 - company pages
 - financial metrics
@@ -928,7 +928,7 @@ Then:
 - filing browser
 - filing detail
 - company-specific questions
-Phase 3 — Power-user experience
+Phase 3, Power-user experience
 Then:
 - query history
 - command palette
@@ -938,7 +938,7 @@ Then:
 - audit
 - saved queries
 - comparison mode
-Phase 4 — Product polish
+Phase 4, Product polish
 Finally:
 - advanced animations
 - transitions
@@ -996,7 +996,7 @@ Absolutely. We should keep a **single evolving UI/UX specification** for FinLens
 
 Below is the **delta from the previous documentation**, covering what we actually implemented/changed since then.
 
-# FinLens UI/UX Documentation — Update
+# FinLens UI/UX Documentation, Update
 
 ## 1. Frontend implementation status
 
@@ -1028,7 +1028,7 @@ The frontend and backend are now separate running applications.
 
 ---
 
-# 2. Home screen — implemented
+# 2. Home screen, implemented
 
 The previously documented home-screen concept has now been translated into an actual screen.
 
@@ -1064,7 +1064,7 @@ This establishes the main visual hierarchy.
 
 ---
 
-# 3. Sidebar — implemented
+# 3. Sidebar, implemented
 
 The sidebar is now a real persistent desktop navigation element.
 
@@ -1106,7 +1106,7 @@ This follows the earlier mobile decision.
 
 ---
 
-# 4. Top navigation — implemented
+# 4. Top navigation, implemented
 
 The desktop top bar now contains:
 
@@ -1132,7 +1132,7 @@ This is deliberately subtle rather than becoming a large monitoring dashboard.
 
 ---
 
-# 5. FinLens branding — refined
+# 5. FinLens branding, refined
 
 The brand treatment is now:
 
@@ -1160,7 +1160,7 @@ The overall terminology reinforces the intended product positioning:
 
 ---
 
-# 6. Query interface — implemented
+# 6. Query interface, implemented
 
 The query box is now functional UI rather than a static placeholder.
 
@@ -1193,7 +1193,7 @@ The query interface remains the primary interaction on the home page.
 
 ---
 
-# 7. Suggested questions — now functional
+# 7. Suggested questions, now functional
 
 Previously these were only visual suggestions.
 
@@ -1223,7 +1223,7 @@ This is an important change because suggested queries have become **interactive 
 
 ---
 
-# 8. Backend connection — implemented
+# 8. Backend connection, implemented
 
 The frontend is now connected to the actual FinLens API.
 
@@ -1267,7 +1267,7 @@ It is now beginning to function as the actual FinLens client application.
 
 ---
 
-# 9. Loading / analysis experience — implemented
+# 9. Loading / analysis experience, implemented
 
 We introduced a dedicated **FINLENS ANALYSIS** state.
 
@@ -1308,7 +1308,7 @@ The next implementation step is to replace these simulated stages with the real 
 
 ---
 
-# 10. Answer screen — implemented
+# 10. Answer screen, implemented
 
 We have now introduced the first version of the actual answer experience.
 
@@ -1339,7 +1339,7 @@ This follows the original principle:
 
 ---
 
-# 11. Route indicator — implemented
+# 11. Route indicator, implemented
 
 The response can display the backend route.
 
@@ -1365,7 +1365,7 @@ This appears as a small technical metadata element rather than dominating the an
 
 ---
 
-# 12. Verification — implemented
+# 12. Verification, implemented
 
 The answer surface now has a verification/evidence status.
 
@@ -1387,7 +1387,7 @@ This is important because FinLens is supposed to communicate **trust**, not simp
 
 ---
 
-# 13. Citations / Sources — first implementation
+# 13. Citations / Sources, first implementation
 
 The answer screen now renders citations returned by the backend.
 
@@ -1410,7 +1410,7 @@ That remains a next-stage feature.
 
 ---
 
-# 14. Warnings — implemented
+# 14. Warnings, implemented
 
 Backend warnings are now surfaced in the UI.
 
@@ -1430,7 +1430,7 @@ The UI should communicate that distinction rather than pretending everything cam
 
 ---
 
-# 15. Error state — implemented
+# 15. Error state, implemented
 
 We now have a dedicated failure experience.
 
@@ -1450,7 +1450,7 @@ Technical errors are not dumped directly onto the main screen.
 
 ---
 
-# 16. New question flow — implemented
+# 16. New question flow, implemented
 
 Once an answer exists, the user gets:
 
@@ -1476,7 +1476,7 @@ Ask again
 
 ---
 
-# 17. Technical details — implemented
+# 17. Technical details, implemented
 
 We've added a collapsed:
 
@@ -1500,7 +1500,7 @@ A technical/power user can inspect how FinLens produced it.
 
 ---
 
-# 18. Answer metadata — implemented
+# 18. Answer metadata, implemented
 
 The frontend is prepared to display backend metadata including:
 
@@ -1517,7 +1517,7 @@ This mirrors the existing `/ask` response structure rather than inventing a sepa
 
 ---
 
-# 19. Motion design — implemented
+# 19. Motion design, implemented
 
 Framer Motion is now actually being used.
 
@@ -1609,7 +1609,7 @@ This creates the layered terminal appearance we wanted.
 
 ---
 
-# 21. Typography hierarchy — implemented
+# 21. Typography hierarchy, implemented
 
 Current hierarchy is intentionally compact:
 
@@ -1647,7 +1647,7 @@ and
 
 ---
 
-# 22. Trust strip — implemented
+# 22. Trust strip, implemented
 
 The bottom of the home screen now communicates the three core information sources:
 
@@ -1663,7 +1663,7 @@ This subtly reinforces what FinLens is without adding a large marketing section.
 
 ---
 
-# 23. Progressive disclosure — now partly implemented
+# 23. Progressive disclosure, now partly implemented
 
 The current information hierarchy is:
 
@@ -1828,7 +1828,7 @@ It's making the existing experience **genuinely intelligent and trustworthy** by
 
 Absolutely. I’ll treat this as the **new delta to the FinLens UI/backend documentation**, not rewrite the earlier documentation.
 
-# FinLens — UI & Backend Documentation Update
+# FinLens, UI & Backend Documentation Update
 
 **Scope:** Changes since the previous UI/UX documentation.
 
@@ -2277,9 +2277,9 @@ The system currently refuses to use the filing figure because it wasn't returned
 FinLens should distinguish at least:
 
 ```text
-VERIFIED — structured financial data
+VERIFIED, structured financial data
 
-VERIFIED — SEC filing evidence
+VERIFIED, SEC filing evidence
 
 PARTIALLY VERIFIED
 
@@ -2361,7 +2361,7 @@ That has **not yet been built**.
 
 ---
 
-# 15. Verification integration — partially solved
+# 15. Verification integration, partially solved
 
 The frontend receives:
 

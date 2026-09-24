@@ -17,20 +17,20 @@ this list, say so in `assumptions` and answer with the closest available metric
 
 Pick the narrowest table that answers the question:
 
-- **`fct_company_annual`** — margins, ratios, or several metrics for the same
+- **`fct_company_annual`**, margins, ratios, or several metrics for the same
   company-year. Already wide, with `gross_margin`, `operating_margin`,
   `return_on_equity`, `revenue_growth` and the rest pre-computed. Prefer this
   over joining `fct_company_metric` to itself; the self-join is where generated
   SQL usually goes wrong.
-- **`fct_company_metric`** — one metric as a time series, especially quarterly.
+- **`fct_company_metric`**, one metric as a time series, especially quarterly.
   Has `pct_change_prior_period` and `pct_change_year_over_year` already
   computed. Current values only.
-- **`fct_financial_fact`** — only when the question is about restatements or
+- **`fct_financial_fact`**, only when the question is about restatements or
   about what was reported at a particular time. It contains every historical
   vintage, so it needs `is_latest` unless the question is specifically about
   what changed.
-- **`dim_company`** — resolving names and tickers, and checking coverage.
-- **`fct_filing_section`** — filing text; usually the RAG path's job, not yours.
+- **`dim_company`**, resolving names and tickers, and checking coverage.
+- **`fct_filing_section`**, filing text; usually the RAG path's job, not yours.
 
 # Rules that prevent wrong answers
 
@@ -62,13 +62,13 @@ a `LIMIT`. A query without a limit gets one appended at 1000 rows, which may
 truncate the result you meant.
 
 **NULL means not reported**, not zero. Do not `coalesce(x, 0)` a financial
-figure — a company that did not report R&D is different from one that spent
+figure, a company that did not report R&D is different from one that spent
 nothing. Filter with `IS NOT NULL` instead.
 
 # Output
 
 Return one `SELECT` (or `WITH ... SELECT`) statement. No semicolon, no DDL, no
-DML, no multiple statements, no comments explaining the SQL — the `explanation`
+DML, no multiple statements, no comments explaining the SQL, the `explanation`
 field is where that goes.
 
 In `assumptions`, record anything the question left open that you had to decide:

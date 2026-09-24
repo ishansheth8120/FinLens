@@ -17,7 +17,7 @@ Roughly 45 minutes, all free, none needs a card.
 | Supabase | Postgres + pgvector, 500 MB | supabase.com |
 | Hugging Face | Spaces hosting | huggingface.co |
 
-Nothing breaks if you skip one — the corresponding component falls back to a
+Nothing breaks if you skip one, the corresponding component falls back to a
 local implementation, and `/health` says which.
 
 ---
@@ -58,7 +58,7 @@ export FINLENS_DBT_TARGET=bigquery
 make warehouse
 ```
 
-`maximum_bytes_billed` is set to 10 GB in `profiles.yml` — a guardrail against
+`maximum_bytes_billed` is set to 10 GB in `profiles.yml`, a guardrail against
 one runaway scan eating the monthly terabyte.
 
 ---
@@ -139,7 +139,7 @@ SUPABASE_DB_URL          # if using pgvector
 ```
 
 The Space ships the prebuilt `data/` directory in the image. A Space has
-ephemeral disk and no Spark, so rebuilding on cold start is not an option —
+ephemeral disk and no Spark, so rebuilding on cold start is not an option,
 build the warehouse and index in CI, commit or upload them, and treat the Space
 as read-only.
 

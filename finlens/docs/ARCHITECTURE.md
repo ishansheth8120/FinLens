@@ -1,4 +1,4 @@
-# FinLens — Architecture and Evaluation
+# FinLens, Architecture and Evaluation
 
 Question answering over SEC EDGAR filings, with every figure machine-checked
 against its source before it is served.
@@ -18,21 +18,21 @@ An equity analyst wants two things from a filing, and they live in different
 halves of it.
 
 *"What was Apple's FY2023 gross margin, and how does it compare with
-Microsoft's?"* — a number, and one that has to be right. It comes from XBRL
+Microsoft's?"*, a number, and one that has to be right. It comes from XBRL
 tags, which are structured, comparable across companies, and messy in specific
 ways covered in §4.
 
-*"What supply-chain risks does Apple disclose?"* — prose, from Item 1A. There is
+*"What supply-chain risks does Apple disclose?"*, prose, from Item 1A. There is
 no structured representation of it and no way to compute it.
 
 Most systems built on filings pick one half. A text-only RAG system answers the
 first question by retrieving a sentence that happens to contain a number, which
-is unreliable in a way the output does not reveal — the sentence is real, the
+is unreliable in a way the output does not reveal, the sentence is real, the
 citation resolves, and the figure may still be the wrong period, the wrong
 entity or a restated value. A SQL-only system cannot answer the second question
 at all.
 
-FinLens does both, routes between them, and — the part that matters — verifies
+FinLens does both, routes between them, and, the part that matters, verifies
 the numbers it produces.
 
 ### The specific failure this is built against
@@ -114,10 +114,10 @@ score from a second model. It is solved by recomputing the number.
 | Batch | PySpark in Docker | Free, local. The structured layer genuinely needs it (§3). |
 | Warehouse | BigQuery sandbox / DuckDB | 10 GB + 1 TB queries free, permanently, no card. DuckDB target for local. |
 | Transform | dbt-core | The semantic layer is where correctness logic belongs (§4). |
-| Embeddings | `bge-small-en-v1.5` | Local CPU, free forever, 384-dim — fits the Supabase tier. |
+| Embeddings | `bge-small-en-v1.5` | Local CPU, free forever, 384-dim, fits the Supabase tier. |
 | Vector + RLS | Supabase pgvector | 500 MB free, and RLS is the governance layer (§8). |
 | LLM | Gemini Flash → Groq | Both free-tier. Provider-agnostic with a fallback chain (§5.1). |
-| API | FastAPI + Docker | — |
+| API | FastAPI + Docker |, |
 | Orchestration | Airflow (DAGs) + GitHub Actions | Actions is free on public repos. |
 
 Deliberately **not** used: Snowflake (trial expires; BigQuery proves the same
@@ -135,7 +135,7 @@ central design decision, and it is deliberate rather than a resource compromise.
 Retrieval cost scales with corpus size; retrieval *value* does not.
 
 Adding the 290th company's 10-K text to the index costs an embedding pass, 500
-MB of storage pressure, and — the part people miss — it degrades retrieval for
+MB of storage pressure, and, the part people miss, it degrades retrieval for
 every other company, because risk-factor language is near-identical across
 issuers in the same sector. A query about Apple's supply-chain risk that
 retrieves Dell's supply-chain risk is worse than one that cannot retrieve
@@ -151,7 +151,7 @@ So: broad where breadth compounds, narrow where it dilutes.
 ### What this costs
 
 Real, and stated plainly: FinLens cannot answer a narrative question about a
-company outside the ten. Case `nr-15` in the golden set tests exactly this — the
+company outside the ten. Case `nr-15` in the golden set tests exactly this, the
 correct answer is "the text corpus does not cover Coca-Cola", and an invented
 answer is scored as a failure. Case `hy-02` tests the seam directly: Boeing is
 in the structured universe but not the text universe, so the figure is available
@@ -167,7 +167,7 @@ text_items = ["1A", "7", "7A"]   # Risk Factors, MD&A, Market Risk
 
 Item 8 (financial statements) is deliberately **not** indexed. It is already in
 the structured layer, and indexing it would create two sources of truth for the
-same number — the retrieval path could then contradict the warehouse, and there
+same number, the retrieval path could then contradict the warehouse, and there
 would be no principled way to decide which was right.
 
 ---
@@ -190,7 +190,7 @@ depends on when it filed and how it interpreted the standard:
 | `SalesRevenueNet` | Legacy, retired after ASC 606 |
 
 A query filtering on any single tag silently returns nothing for a large
-fraction of the population, and — worse — returns *something* for the rest, so
+fraction of the population, and, worse, returns *something* for the rest, so
 the result looks complete.
 
 ### The solution
@@ -233,9 +233,9 @@ filters on it.
 6-month, 9-month and 12-month durations under the *same* concept. A query for
 "quarterly revenue" that does not filter on duration length picks up the
 nine-month YTD figure alongside Q3 and reports a number roughly three times too
-large. Handling: `period_kind` buckets duration in days —
+large. Handling: `period_kind` buckets duration in days,
 `quarterly` (80–100), `half_year` (170–190), `three_quarters` (260–285),
-`annual` (350–380) — and the marts filter to `annual` and `quarterly` only.
+`annual` (350–380), and the marts filter to `annual` and `quarterly` only.
 Golden-set cases `sf-09` and `mp-05` exist to catch a regression here.
 
 ### Why the wide mart exists
@@ -246,7 +246,7 @@ it earns that cost.
 
 The long tables are the right shape for a warehouse and the wrong shape for a
 language model. Asking one to compute gross margin from `fct_company_metric`
-requires a self-join on `metric` with matched periods — and that self-join is
+requires a self-join on `metric` with matched periods, and that self-join is
 where generated SQL reliably falls over. Pre-computing the ratio moves the
 correctness burden from the model into dbt, where it is tested. §7 will report
 what that trade actually bought.
@@ -282,7 +282,7 @@ run dies at case 40 having spent an hour and produced nothing comparable.
 half by Groq is not comparable to one served by Gemini, and an eval that does
 not record that is reporting a number it cannot reproduce.
 
-Structured outputs are used throughout — router decisions, generated SQL, judge
+Structured outputs are used throughout, router decisions, generated SQL, judge
 verdicts. Gemini enforces a response schema natively; Groq guarantees valid JSON
 but not schema conformance, so the schema goes in the prompt and Pydantic
 validates. A malformed response is a validation error at the boundary rather
@@ -299,7 +299,7 @@ high-precision: a heuristic that fires wrongly is worse than one that never
 fires, because the model call it skipped was the thing that would have caught
 the mistake.
 
-Below 0.5 confidence the route is upgraded to `hybrid` — both stores searched.
+Below 0.5 confidence the route is upgraded to `hybrid`, both stores searched.
 Costs roughly one extra retrieval and one extra generation; answering from the
 wrong store costs the answer.
 
@@ -309,7 +309,7 @@ answer, and no downstream component can recover from it.
 
 ### 5.3 Text-to-SQL and the query allowlist
 
-Generated SQL is parsed with `sqlglot` — not regex-matched — and must satisfy
+Generated SQL is parsed with `sqlglot`, not regex-matched, and must satisfy
 three controls before it runs:
 
 1. **Table allowlist.** Only the seven `mart_`-layer models. Not staging, not
@@ -322,7 +322,7 @@ The AST matters. A regex looking for `delete` rejects
 `WHERE company_name = 'Delete Inc.'` and accepts `SEL/**/ECT`. A parser answers
 the question the way the database will. Both behaviours are tested.
 
-The connection is *also* opened read-only, which is the actual boundary — a
+The connection is *also* opened read-only, which is the actual boundary, a
 parser can be fooled, a read-only DuckDB connection cannot be talked into
 writing. The guard exists to reject bad queries with a usable error, and to
 catch the expensive-but-legal ones a read-only flag says nothing about.
@@ -332,7 +332,7 @@ Capped at two deliberately: past that the model tends to rewrite the query into
 something that runs but answers a different question, which is worse than an
 honest failure.
 
-### 5.4 The numeric verifier — the headline feature
+### 5.4 The numeric verifier, the headline feature
 
 Every figure the model asserts is recomputed against the actual query rows
 before the answer is served.
@@ -353,18 +353,18 @@ Synthesis returns structured output, not prose:
 
 Each claim is then reconciled against the result set. Three ways to pass:
 
-1. **Direct match** — the value appears in the rows.
-2. **Scaled match** — it appears at a different magnitude. Reporting
+1. **Direct match**, the value appears in the rows.
+2. **Scaled match**, it appears at a different magnitude. Reporting
    383,285,000,000 as "$383.3B", or 0.441 as "44.1%", is a correct restatement,
    not an error. The checker is scale-aware across thousands/millions/billions/
    trillions and the percent-fraction pair.
-3. **Derived match** — it equals a difference, ratio or percent change between
+3. **Derived match**, it equals a difference, ratio or percent change between
    two values that *are* present. Arithmetic on the given data is legitimate.
 
 Anything else is `mismatch` (a number was found, and it is not this one) or
 `unsupported` (nothing in the rows corresponds at any scale). Both are failures,
 and the failing clause is **removed** from the commentary and replaced with an
-explicit marker — not annotated with a warning, because readers do not read
+explicit marker, not annotated with a warning, because readers do not read
 warnings.
 
 The verifier never consults outside knowledge. A figure that is true of the real
@@ -377,7 +377,7 @@ A fixed relative tolerance cannot work here, and getting this wrong makes the
 whole feature useless in one direction or the other.
 
 Set it loose enough to accept "$383.3B" for 383,285,000,000 (0.004% off) and it
-also accepts **383,825** for **383,285** — a transposed digit, 0.14% off, and
+also accepts **383,825** for **383,285**, a transposed digit, 0.14% off, and
 exactly the error the module exists to catch. Set it tight and every rounded
 figure fails.
 
@@ -390,7 +390,7 @@ carefully-tested function in the codebase (`tests/unit/test_verifier.py`).
 
 #### What it does not do
 
-Pure-RAG answers have no result set, so their claims are `uncheckable` — not
+Pure-RAG answers have no result set, so their claims are `uncheckable`, not
 failures. Numbers quoted from filing *text* are not verified, because the text
 is unparsed prose. That is a real gap and it is stated in §10.
 
@@ -404,8 +404,8 @@ RRF rather than a weighted score blend, because cosine similarity and
 length fails at another. RRF uses only ranks, so it needs no per-corpus
 calibration. k=60, from the original paper.
 
-Hybrid is not optional in this domain. Filings are full of exact strings —
-tickers, item numbers, defined terms, dollar amounts — that dense retrieval
+Hybrid is not optional in this domain. Filings are full of exact strings,
+tickers, item numbers, defined terms, dollar amounts, that dense retrieval
 handles poorly and BM25 nails. Most portfolio RAG projects are dense-only; the
 ablation in §6 measures what the lexical arm is worth here.
 
@@ -458,8 +458,8 @@ next week.
 | Company precision | Retrieved chunks from the right company | Deterministic |
 | Judge correctness | 0–5 against the case rubric | LLM judge |
 | Judge groundedness | Claims supported by shown evidence | LLM judge |
-| p50 / p95 latency | — | Measured |
-| Tokens per query | — | Measured |
+| p50 / p95 latency |, | Measured |
+| Tokens per query |, | Measured |
 
 Verifier groundedness and judge groundedness are reported **separately and both**
 on purpose. The verifier is arithmetic and cannot be argued with, but only covers
@@ -467,7 +467,7 @@ figures with a result set behind them. The judge covers qualitative claims but i
 itself a model and can be wrong. Reporting only one would overstate the guarantee.
 
 The judge is deliberately a hard marker and grades correctness and groundedness
-independently, because an answer can be **correct and ungrounded** — the model
+independently, because an answer can be **correct and ungrounded**, the model
 knew Apple's revenue and stated it while the evidence said nothing. That is the
 failure this system exists to prevent, and it is invisible to a correctness score
 alone, because the answer is *right*.
@@ -485,14 +485,14 @@ alone, because the answer is *right*.
 
 | Metric | Value | Run |
 |---|---|---|
-| Cases | — | — |
-| Pass rate | — | — |
-| Routing accuracy | — | — |
-| SQL execution rate | — | — |
-| Verifier groundedness | — | — |
-| Retrieval recall@5 | — | — |
-| Judge correctness (mean) | — | — |
-| p50 / p95 latency | — | — |
+| Cases |, |, |
+| Pass rate |, |, |
+| Routing accuracy |, |, |
+| SQL execution rate |, |, |
+| Verifier groundedness |, |, |
+| Retrieval recall@5 |, |, |
+| Judge correctness (mean) |, |, |
+| p50 / p95 latency |, |, |
 
 ---
 
@@ -513,7 +513,7 @@ answers, and cross-entity comparisons between periods a year apart.
 
 **Cases that will show it:** `mp-02`, `mp-14`, `ce-15`, `sf-04`.
 
-**Predicted fix.** Move the logic out of the LLM and into the semantic layer —
+**Predicted fix.** Move the logic out of the LLM and into the semantic layer,
 pre-compute period-over-period changes in dbt rather than asking the model to
 align periods and subtract. That is the same move already made for ratios (§4),
 and if the prediction holds, measuring it before and after is the most useful
@@ -552,7 +552,7 @@ control.**
 
 Enforced in two places the model cannot reach:
 
-**The warehouse — AST rewrite.** Every generated query is rewritten before
+**The warehouse, AST rewrite.** Every generated query is rewritten before
 execution. Each entity-scoped table reference becomes a filtered subquery:
 
 ```sql
@@ -567,20 +567,20 @@ FROM (SELECT * FROM marts.fct_company_annual
 Done on the AST, so it survives joins, CTEs and subqueries, and preserves the
 alias. A model that writes `WHERE cik = '<forbidden>'` gets an empty result, not
 a leak. An empty entitlement set renders as a never-true predicate rather than
-as no predicate — tested, because `IN ()` is a syntax error and the naive
+as no predicate, tested, because `IN ()` is a syntax error and the naive
 implementation of that edge case fails open.
 
-**The vector store — Postgres RLS.** `filing_chunks` has row-level security
+**The vector store, Postgres RLS.** `filing_chunks` has row-level security
 keyed to `auth.uid()` via a `user_entity_access` table, with `FORCE ROW LEVEL
 SECURITY` so the table owner does not bypass it. The hybrid search function is
-`security invoker`, so policies apply to it — a `security definer` search
+`security invoker`, so policies apply to it, a `security definer` search
 function would silently bypass every entitlement, which is the most common way
 an RLS demo proves nothing.
 
 The two mechanisms differ because the engines differ, and that is worth being
 explicit about: RLS is the stronger control, and the SQL rewrite is what you do
 when the engine has no RLS (DuckDB does not). On BigQuery the equivalent is an
-authorised view — the same idea with the rewrite done once at deploy time.
+authorised view, the same idea with the rewrite done once at deploy time.
 
 ### 8.2 Query allowlist
 
@@ -599,9 +599,9 @@ prompt_tokens · completion_tokens · latency_ms · warnings`
 `GET /audit/{request_id}` replays it exactly.
 
 Two decisions worth defending. **Both the generated and the scoped SQL are
-stored** — the difference between them *is* the access control, and a log that
+stored**, the difference between them *is* the access control, and a log that
 kept only one could not demonstrate it was applied. **The result hash, not the
-result rows** — storing every row of every query grows without bound and
+result rows**, storing every row of every query grows without bound and
 duplicates the warehouse; a SHA-256 answers the question that actually gets
 asked in an incident ("was this the same data we served then?") at fixed cost.
 
@@ -640,12 +640,12 @@ API, Spark and Airflow. Correct and fast on one host; it does not survive a
 second one. First change: the lake becomes the only shared state (it already is,
 in R2), and the warehouse becomes BigQuery for everything rather than a local
 DuckDB with BigQuery as an alternate target. The `duckdb` target stays as the
-local development path — one engine for laptops, one for the cluster, same
-models — which is already how `profiles.yml` is structured.
+local development path, one engine for laptops, one for the cluster, same
+models, which is already how `profiles.yml` is structured.
 
 **2. Full-refresh dbt builds.** Rebuilding every mart nightly is fine at 300
 companies and absurd at 30,000. `fct_financial_fact` becomes incremental on
-`filed_date`, with a periodic full refresh to catch restatements of old periods —
+`filed_date`, with a periodic full refresh to catch restatements of old periods,
 which incremental logic keyed on filing date will otherwise miss, because a
 restatement of FY2019 arrives with a 2026 filing date and *should* update a 2019
 row. That subtlety is why incremental was not done prematurely: getting it
@@ -660,7 +660,7 @@ accepting approximate recall. The interface already accommodates it
 (`create_ann_index`), so this is a tuning change rather than a rewrite.
 
 **4. Sequential ingest.** SEC's 10 req/s ceiling is the binding constraint and it
-is per-IP, so parallelism does not help — 30,000 companies is roughly an hour of
+is per-IP, so parallelism does not help, 30,000 companies is roughly an hour of
 wall clock at the ceiling for metadata alone, and days with documents. At that
 scale the right answer is to stop polling per-company and consume the daily index
 files instead, pulling only what changed. That is a different ingest strategy,
@@ -668,7 +668,7 @@ not a bigger version of this one.
 
 **5. Per-request LLM calls.** Router + SQL-gen + synthesis is three calls per
 question, and the router's latency lands on every one. At scale: cache the
-schema-catalogue prefix (already structured for it — the catalogue is byte-stable
+schema-catalogue prefix (already structured for it, the catalogue is byte-stable
 and sits at the front of the system prompt), batch the eval harness through the
 Batch API at half price, and consider a fine-tuned small model for routing, which
 is a bounded classification problem with abundant labelled data from the audit
@@ -723,4 +723,4 @@ make api                               # serve on :8000
 ```
 
 Costs nothing to run. SEC requires a real contact address in
-`FINLENS_SEC_USER_AGENT` — requests without one get blocked at the edge.
+`FINLENS_SEC_USER_AGENT`, requests without one get blocked at the edge.

@@ -953,7 +953,7 @@ The current weakness is primarily the SQL-agent path.
 
 ---
 
-# 26. Current Problems — Categorized
+# 26. Current Problems, Categorized
 
 ## A. FIXED
 
@@ -1393,7 +1393,7 @@ After finding the relevant source, inspect it before modifying anything.
 
 
 
-FinLens — Engineering Progress & Issue Log
+FinLens, Engineering Progress & Issue Log
 1. Project objective
 FinLens is a financial intelligence and question-answering system built around SEC EDGAR data.
 The intended flow is:
@@ -1444,11 +1444,11 @@ CLI	Typer
 SQL validation	SQLGlot
 Data models	Pydantic
 Testing	Pytest
-Frontend	Next.js / React — now being added
+Frontend	Next.js / React, now being added
 
 
 3. Data pipeline issues
-Issue #1 — Warehouse schema wasn't where the embedding code expected
+Issue #1, Warehouse schema wasn't where the embedding code expected
 The embedding code originally queried:
 marts.fct_filing_section
 But the actual DuckDB schema was:
