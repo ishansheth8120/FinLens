@@ -226,51 +226,33 @@ export default function Home() {
 
       case "route":
         completeStage("router");
-        return;
-
-      case "warehouse_started":
         activateStage("warehouse");
         return;
 
-      case "warehouse_completed":
+      case "sql":
         completeStage("warehouse");
-        return;
-
-      case "retrieval_started":
         activateStage("retrieval");
         return;
 
-      case "retrieval_completed":
+      case "citation":
         completeStage("retrieval");
-        return;
-
-      case "synthesis_started":
-        activateStage("synthesis");
-        return;
-
-      case "synthesis_completed":
-        completeStage("synthesis");
-        if (payload?.verified) {
-          activateStage("verification");
-        }
+        activateStage("verification");
         return;
 
       case "verification":
         completeStage("verification");
+        activateStage("synthesis");
         return;
 
       case "token":
         activateStage("synthesis");
         return;
 
-      case "citation":
-      case "sql":
-        return;
-
       default:
         return;
     }
   }
+
   function activateStage(key: StageName) {
     setStages((current) =>
       current.map((stage) =>
@@ -613,73 +595,30 @@ function AnalysisState({
   question: string;
   stages: Stage[];
 }) {
-  const completed = stages.filter((stage) => stage.state === "complete").length;
-  const activeIndex = stages.findIndex((stage) => stage.state === "active");
-  const progress = Math.max(4, Math.round(((completed + (activeIndex >= 0 ? 0.45 : 0)) / stages.length) * 100));
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-[820px] px-5 pb-20 pt-14 md:pt-20"
+      className="w-full max-w-[760px] px-5 pb-20 pt-16 md:pt-24"
     >
-      <div className="mb-8 flex items-end justify-between gap-6">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-[#59d6ff]">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#59d6ff]" />
-            FINLENS / ANALYSIS
-          </div>
-          <div className="truncate text-[17px] leading-7 text-[#dce2e7]">
-            {question}
-          </div>
+      <div className="mb-10">
+        <div className="mb-3 text-[10px] uppercase tracking-[0.2em] text-[#596570]">
+          FINLENS ANALYSIS
         </div>
 
-        <div className="hidden shrink-0 text-right sm:block">
-          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#46515b]">
-            Pipeline
-          </div>
-          <div className="mt-1 font-mono text-[13px] tabular-nums text-[#83909a]">
-            {String(progress).padStart(2, "0")}%
-          </div>
+        <div className="text-[18px] leading-7 text-[#dce2e7]">
+          {question}
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-xl border border-[#202831] bg-[#090d12] shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(89,214,255,0.025)_50%,transparent_100%)]" />
-
-        <div className="flex items-center justify-between border-b border-[#171e25] px-5 py-3">
-          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[#56616b]">
-            <span className="h-1 w-1 rounded-full bg-[#43d58c]" />
-            LIVE PIPELINE
-          </div>
-          <div className="font-mono text-[9px] text-[#39434c]">
-            {completed}/{stages.length} COMPLETE
-          </div>
-        </div>
-
-        <div className="relative px-5 py-4">
-          <div className="absolute bottom-4 left-[34px] top-4 w-px bg-[#1c252d]" />
-
-          <div
-            className="absolute left-[34px] top-4 w-px bg-[#43d58c] transition-[height] duration-700"
-            style={{ height: `${Math.max(0, completed / Math.max(1, stages.length - 1)) * 100}%` }}
+      <div className="rounded-xl border border-[#202831] bg-[#0b0f14] p-5">
+        {stages.map((stage, index) => (
+          <StageRow
+            key={stage.key}
+            stage={stage}
+            last={index === stages.length - 1}
           />
-
-          {stages.map((stage, index) => (
-            <StageRow
-              key={stage.key}
-              stage={stage}
-              index={index}
-              total={stages.length}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#3f4a54]">
-        <span className="h-px w-8 bg-[#1d252c]" />
-        Evidence pipeline active
-        <span className="h-px w-8 bg-[#1d252c]" />
+        ))}
       </div>
     </motion.div>
   );
@@ -687,12 +626,10 @@ function AnalysisState({
 
 function StageRow({
   stage,
-  index,
-  total,
+  last,
 }: {
   stage: Stage;
-  index: number;
-  total: number;
+  last: boolean;
 }) {
   const active = stage.state === "active";
   const complete = stage.state === "complete";
@@ -700,69 +637,49 @@ function StageRow({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: -6 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.035, duration: 0.22 }}
-      className="relative flex min-h-[72px] items-center gap-4"
+      className={`flex items-center gap-4 ${
+        !last ? "border-b border-[#161d24] pb-4" : ""
+      } ${stage.state !== "pending" || !last ? "pt-4" : ""}`}
     >
       <div
-        className={`relative z-10 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border bg-[#090d12] ${
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
           active
-            ? "border-[#59d6ff] text-[#59d6ff] shadow-[0_0_16px_rgba(89,214,255,0.22)]"
+            ? "border-[#3d8da5] bg-[#10242b] text-[#59d6ff]"
             : complete
-              ? "border-[#34785b] text-[#43d58c]"
-              : "border-[#29323a] text-[#46515e]"
+              ? "border-[#285e49] bg-[#0d1d17] text-[#43d58c]"
+              : "border-[#29323a] text-[#4b5661]"
         }`}
       >
         {complete ? (
-          <CheckCircle2 size={12} strokeWidth={2} />
+          <CheckCircle2 size={14} />
         ) : active ? (
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inset-0 animate-ping rounded-full bg-[#59d6ff] opacity-40" />
-            <span className="relative h-2 w-2 rounded-full bg-[#59d6ff]" />
-          </span>
+          <span className="h-2 w-2 animate-pulse rounded-full bg-[#59d6ff]" />
         ) : (
-          <span className="h-1 w-1 rounded-full bg-[#3d4751]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-[#39434d]" />
         )}
       </div>
 
-      <div className="min-w-0 flex-1 py-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={`font-mono text-[10px] tracking-[0.14em] ${
-              active
-                ? "text-[#59d6ff]"
-                : complete
-                  ? "text-[#43d58c]"
-                  : "text-[#66717b]"
-            }`}
-          >
-            {stage.label}
-          </div>
-
-          {active && (
-            <div className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.12em] text-[#45616c]">
-              <span className="h-1 w-1 animate-pulse rounded-full bg-[#59d6ff]" />
-              processing
-            </div>
-          )}
-        </div>
-
+      <div>
         <div
-          className={`mt-1 text-[11px] leading-5 ${
-            active ? "text-[#89959e]" : complete ? "text-[#59656e]" : "text-[#414c55]"
+          className={`font-mono text-[10px] tracking-[0.12em] ${
+            active
+              ? "text-[#59d6ff]"
+              : complete
+                ? "text-[#43d58c]"
+                : "text-[#66717b]"
           }`}
         >
+          {stage.label}
+        </div>
+
+        <div className="mt-1 text-[11px] text-[#65707b]">
           {stage.description}
         </div>
-      </div>
-
-      <div className="hidden shrink-0 font-mono text-[8px] tabular-nums text-[#303a43] sm:block">
-        {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
       </div>
     </motion.div>
   );
 }
+
 async function consumeStream(
   body: ReadableStream<Uint8Array>,
   handlers: {
