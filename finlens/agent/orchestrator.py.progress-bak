@@ -177,7 +177,6 @@ class Agent:
         *,
         principal: Principal | None = None,
         force_route: Route | None = None,
-        on_progress: Callable[[str, dict], None] | None = None,
         write_audit: bool = True,
     ) -> Answer:
         """Answer one question end to end, within the principal's scope."""
@@ -202,9 +201,6 @@ class Agent:
         if force_route is not None:
             decision.route = force_route
             decision.reasoning = f"Route forced to {force_route.value} by the caller."
-
-        if on_progress:
-            on_progress("route", {"route": decision.route.value, "confidence": decision.confidence})
 
         route = decision.route
         warnings: list[str] = []
@@ -240,26 +236,17 @@ class Agent:
                 route = Route.HYBRID
 
             if route == Route.HYBRID:
-                if on_progress:
-                    on_progress("warehouse_started", {})
-                    on_progress("retrieval_started", {"reason": "hybrid"})
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     sql_future = pool.submit(self._run_sql, question, decision.entities, policy)
                     rag_future = pool.submit(self._run_rag, question, decision.entities, policy)
                     sql_result, sql_usage, raw_sql = sql_future.result()
                     retrieval = rag_future.result()
-                if on_progress:
-                    on_progress("warehouse_completed", {"ok": sql_result.ok, "row_count": len(sql_result.rows)})
-                    on_progress("retrieval_completed", {})
                 usage = usage.add(sql_usage)
+
             elif route == Route.SQL:
-                if on_progress:
-                    on_progress("warehouse_started", {})
                 sql_result, sql_usage, raw_sql = self._run_sql(
                     question, decision.entities, policy
                 )
-                if on_progress:
-                    on_progress("warehouse_completed", {"ok": sql_result.ok, "row_count": len(sql_result.rows)})
                 usage = usage.add(sql_usage)
                 # A SQL question whose query returned nothing is often still
                 # answerable from filing text, and falling back beats a wrong no.
@@ -268,19 +255,11 @@ class Agent:
                     warnings.append(
                         "The warehouse query returned nothing, so filing text was searched."
                     )
-                    if on_progress:
-                        on_progress("retrieval_started", {"reason": "sql_fallback"})
                     retrieval = self._run_rag(question, decision.entities, policy)
-                    if on_progress:
-                        on_progress("retrieval_completed", {})
+
             else:
-                if on_progress:
-                    on_progress("retrieval_started", {})
                 retrieval = self._run_rag(question, decision.entities, policy)
-                if on_progress:
-                    on_progress("retrieval_completed", {})
-            if on_progress:
-                on_progress("synthesis_started", {})
+
             answer = synthesize(
                 question,
                 route=route,
@@ -291,9 +270,8 @@ class Agent:
                 llm=self.llm,
                 settings=self.settings,
             )
-            if on_progress:
-                on_progress("synthesis_completed", {"verified": answer.verification is not None})
             answer.usage = usage.add(answer.usage)
+
         answer.request_id = request_id
         answer.elapsed_ms = (time.perf_counter() - started) * 1000
 

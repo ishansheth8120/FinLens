@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import asyncio
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
@@ -127,46 +126,22 @@ async def ask(request: AskRequest, agent: AgentDep, principal: PrincipalDep) -> 
 async def ask_stream(
     request: AskRequest, agent: AgentDep, principal: PrincipalDep
 ) -> EventSourceResponse:
-    """Stream real agent progress while the synchronous agent runs in a worker."""
+    """Server-sent events.
+
+    Routing, query generation and retrieval all complete before any text can be
+    produced, so the client gets progress events for those stages first. Without
+    them the connection looks hung for several seconds on a hybrid question.
+    """
 
     async def events():
-        progress_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
-        loop = asyncio.get_running_loop()
-
-        def on_progress(event: str, payload: dict) -> None:
-            loop.call_soon_threadsafe(progress_queue.put_nowait, (event, payload))
-
         yield {"event": "status", "data": json.dumps({"stage": "routing"})}
 
-        task = asyncio.create_task(
-            run_in_threadpool(
-                agent.ask,
-                request.question,
-                principal=principal,
-                force_route=request.route,
-                on_progress=on_progress,
-            )
-        )
-
         try:
-            while True:
-                if task.done() and progress_queue.empty():
-                    break
-
-                try:
-                    event, payload = await asyncio.wait_for(
-                        progress_queue.get(), timeout=0.25
-                    )
-                    yield {"event": event, "data": json.dumps(payload)}
-                except asyncio.TimeoutError:
-                    continue
-
-            answer = await task
-
+            answer = await run_in_threadpool(
+                agent.ask, request.question, principal=principal, force_route=request.route
+            )
         except Exception as exc:  # noqa: BLE001
             log.error("api.stream_failed", error=str(exc))
-            if not task.done():
-                task.cancel()
             yield {"event": "error", "data": json.dumps({"error": str(exc)})}
             return
 
@@ -201,6 +176,10 @@ async def ask_stream(
                 ),
             }
 
+        # The answer is complete by this point - verification has to run over
+        # the whole thing before any of it can be served. Chunking here keeps
+        # the client contract identical to a token-level stream, so moving to
+        # one later is not a breaking change.
         for paragraph in answer.answer.split("\n\n"):
             yield {"event": "token", "data": json.dumps({"text": paragraph + "\n\n"})}
 
