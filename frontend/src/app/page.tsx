@@ -128,6 +128,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stages, setStages] = useState<Stage[]>(initialStages);
+  type TraceEvent = { time: string; event: string; payload: any };
+  const [trace, setTrace] = useState<TraceEvent[]>([]);
 
   async function askFinLens(value?: string) {
     const query = (value ?? question).trim();
@@ -137,6 +139,7 @@ export default function Home() {
     setQuestion(query);
     setAnswer(null);
     setError("");
+    setTrace([]);
     setLoading(true);
     setStages(initialStages);
 
@@ -217,6 +220,17 @@ export default function Home() {
   }
 
   function handleStreamEvent(eventName: string, payload: any) {
+    const stamp = new Date().toLocaleTimeString([], {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    setTrace((current) => [
+      ...current,
+      { time: stamp, event: eventName, payload },
+    ].slice(-14));
     switch (eventName) {
       case "status":
         if (payload?.stage === "routing") {
@@ -415,6 +429,7 @@ export default function Home() {
                   key="analysis"
                   question={question}
                   stages={stages}
+                  trace={trace}
                 />
               ) : error ? (
                 <ErrorState key="error" error={error} onBack={reset} />
@@ -606,22 +621,95 @@ function QueryBox({
   );
 }
 
+
+function formatTrace(event: string, payload: any): string[] {
+  switch (event) {
+    case "status":
+      return [
+        "> router.init",
+        `  stage       = ${payload?.stage ?? "routing"}`,
+      ];
+
+    case "route":
+      return [
+        "> router.classify",
+        `  route       = ${payload?.route ?? "unknown"}`,
+        `  confidence  = ${payload?.confidence ?? "n/a"}`,
+      ];
+
+    case "warehouse_started":
+      return [
+        "> warehouse.execute",
+        "  status      = running",
+      ];
+
+    case "warehouse_completed":
+      return [
+        "> warehouse.execute",
+        `  status      = ${payload?.ok ? "complete" : "empty"}`,
+        `  rows        = ${payload?.row_count ?? 0}`,
+      ];
+
+    case "retrieval_started":
+      return [
+        "> retrieval.init",
+        `  reason      = ${payload?.reason ?? "hybrid"}`,
+      ];
+
+    case "retrieval_completed":
+      return [
+        "> retrieval.search",
+        "  status      = complete",
+      ];
+
+    case "synthesis_started":
+      return [
+        "> synthesis.init",
+        "  status      = generating",
+      ];
+
+    case "verification":
+      return [
+        "> verification",
+        `  checked     = ${payload?.checked ?? 0}`,
+        `  reconciled  = ${payload?.reconciled ?? 0}`,
+        `  failed      = ${payload?.failed ?? 0}`,
+      ];
+
+    case "synthesis_completed":
+      return [
+        "> synthesis.complete",
+        `  verified    = ${payload?.verified ? "true" : "false"}`,
+      ];
+
+    default:
+      return [];
+  }
+}
+
 function AnalysisState({
   question,
   stages,
+  trace,
 }: {
   question: string;
   stages: Stage[];
+  trace: string[];
 }) {
   const completed = stages.filter((stage) => stage.state === "complete").length;
   const activeIndex = stages.findIndex((stage) => stage.state === "active");
-  const progress = Math.max(4, Math.round(((completed + (activeIndex >= 0 ? 0.45 : 0)) / stages.length) * 100));
+  const progress = Math.max(
+    4,
+    Math.round(
+      ((completed + (activeIndex >= 0 ? 0.45 : 0)) / stages.length) * 100
+    )
+  );
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-[820px] px-5 pb-20 pt-14 md:pt-20"
+      className="w-full max-w-[1280px] px-5 pb-20 pt-14 md:px-8 md:pt-16"
     >
       <div className="mb-8 flex items-end justify-between gap-6">
         <div className="min-w-0">
@@ -644,35 +732,92 @@ function AnalysisState({
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-xl border border-[#202831] bg-[#090d12] shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(89,214,255,0.025)_50%,transparent_100%)]" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)]">
+        <div className="relative overflow-hidden rounded-xl border border-[#202831] bg-[#090d12] shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(89,214,255,0.025)_50%,transparent_100%)]" />
 
-        <div className="flex items-center justify-between border-b border-[#171e25] px-5 py-3">
-          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[#56616b]">
-            <span className="h-1 w-1 rounded-full bg-[#43d58c]" />
-            LIVE PIPELINE
+          <div className="flex items-center justify-between border-b border-[#171e25] px-5 py-3">
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[#56616b]">
+              <span className="h-1 w-1 rounded-full bg-[#43d58c]" />
+              LIVE PIPELINE
+            </div>
+            <div className="font-mono text-[9px] text-[#39434c]">
+              {completed}/{stages.length} COMPLETE
+            </div>
           </div>
-          <div className="font-mono text-[9px] text-[#39434c]">
-            {completed}/{stages.length} COMPLETE
+
+          <div className="relative px-5 py-4">
+            <div className="absolute bottom-4 left-[34px] top-4 w-px bg-[#1c252d]" />
+
+            <div
+              className="absolute left-[34px] top-4 w-px bg-[#43d58c] transition-[height] duration-700"
+              style={{
+                height: `${Math.max(
+                  0,
+                  (completed / Math.max(1, stages.length - 1)) * 100
+                )}%`,
+              }}
+            />
+
+            {stages.map((stage, index) => (
+              <StageRow
+                key={stage.key}
+                stage={stage}
+                index={index}
+                total={stages.length}
+              />
+            ))}
           </div>
         </div>
 
-        <div className="relative px-5 py-4">
-          <div className="absolute bottom-4 left-[34px] top-4 w-px bg-[#1c252d]" />
+        <div className="overflow-hidden rounded-xl border border-[#202831] bg-[#070a0e] shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
+          <div className="flex items-center justify-between border-b border-[#171e25] px-4 py-3">
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[#59d6ff]">
+              <span className="h-1 w-1 rounded-full bg-[#59d6ff] animate-pulse" />
+              FINLENS CORE / LIVE TRACE
+            </div>
+            <div className="font-mono text-[8px] uppercase tracking-[0.14em] text-[#39434c]">
+              SSE
+            </div>
+          </div>
 
-          <div
-            className="absolute left-[34px] top-4 w-px bg-[#43d58c] transition-[height] duration-700"
-            style={{ height: `${Math.max(0, completed / Math.max(1, stages.length - 1)) * 100}%` }}
-          />
+          <div className="h-[388px] overflow-y-auto p-4 font-mono text-[10px] leading-5">
+            {trace.length === 0 ? (
+              <div className="text-[#39434c]">
+                <span className="text-[#59d6ff]">$</span> awaiting pipeline events...
+              </div>
+            ) : (
+              trace.map((entry, index) => {
+                const lines = formatTrace(entry.event, entry.payload);
 
-          {stages.map((stage, index) => (
-            <StageRow
-              key={stage.key}
-              stage={stage}
-              index={index}
-              total={stages.length}
-            />
-          ))}
+                return (
+                  <div key={`${entry.time}-${index}`} className="mb-3">
+                    <div className="mb-0.5 text-[#303b44]">
+                      {entry.time} <span className="text-[#43505a]">{entry.event}</span>
+                    </div>
+
+                    {lines.map((line, lineIndex) => (
+                      <div
+                        key={lineIndex}
+                        className={
+                          line.startsWith(">")
+                            ? "text-[#59d6ff]"
+                            : "pl-2 text-[#7f8b95]"
+                        }
+                      >
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+            {trace.length > 0 && (
+              <div className="mt-1 text-[#59d6ff]">
+                <span className="animate-pulse">▋</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -684,7 +829,6 @@ function AnalysisState({
     </motion.div>
   );
 }
-
 function StageRow({
   stage,
   index,
@@ -696,7 +840,6 @@ function StageRow({
 }) {
   const active = stage.state === "active";
   const complete = stage.state === "complete";
-
   return (
     <motion.div
       layout
